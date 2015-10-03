@@ -1,0 +1,20 @@
+
+It needs to be used inside tools dir of systemd source code.
+
+Options
+==========
+
+-h|help       Show this help
+-v|version    Show version
+-m|man        Search only for manpages
+-b|bash       Search only for bash autocompletions
+-t|template   Generate autocompletion template for program
+-f|full       Search for everything
+-p=PROGRAM    Search for undocumented program
+
+
+*It can search in manpages, bash autocompletions or both for undocumented
+options/commands.
+*It can generate new bash autocompletions with a inlined template.
+*Check if a new binary is undocumented.
+
