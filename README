@@ -18,3 +18,106 @@ options/commands.
 *It can generate new bash autocompletions with a inlined template.
 *Check if a new binary is undocumented.
 
+
+
+=======================================
+   Exit for systemd 228 (15/12/2015)
+=======================================
+
+[systemdir/tools]➬./check-undocumented.sh -f
+
+################################################################################
+#                             Uncompleted MANPAGES                             #
+################################################################################
+
+Updates needed in ../man/systemctl.xml
+...Need to document the command "snapshot"
+...Need to document the command "delete"
+Updates needed in ../man/systemd-cgls.xml
+...Need to document the option "--no-pager"
+Updates needed in ../man/systemd-delta.xml
+...Need to document the option "--no-pager"
+Updates needed in ../man/systemd-analyze.xml
+...Need to document the option "--no-pager"
+...Need to document the option "--host=[USER@]HOST"
+...Need to document the option "--machine=CONTAINER"
+Updates needed in ../man/systemd-run.xml
+...Need to document the option "--host=[USER@]HOST"
+...Need to document the option "--machine=CONTAINER"
+No manpage for systemd-stdio-bridge!
+Updates needed in ../man/systemd-firstboot.xml
+...Need to document the option "--machine-ID=ID"
+Command not found or unknown options in: udevadm!
+Updates needed in ../man/journalctl.xml
+...Need to document the command "-h"
+...Need to document the command "-F"
+Updates needed in ../man/localectl.xml
+...Need to document the option "--machine=CONTAINER"
+Updates needed in ../man/machinectl.xml
+...Need to document the option "--quiet"
+
+################################################################################
+#                       Uncompleted BASH AUTOCOMPLETIONS                       #
+################################################################################
+
+No bash autocompletion for systemctl!
+No bash autocompletion for systemd-notify!
+No bash autocompletion for systemd-ask-password!
+No bash autocompletion for systemd-tty-ask-password-agent!
+No bash autocompletion for systemd-machine-id-setup!
+No bash autocompletion for systemd-escape!
+Updates needed in ../shell-completion/bash/systemd-nspawn
+...Option not found: "--template"
+...Option not found: "-x"
+...Option not found: "--ephemeral"
+...Option not found: "--network-ipvlan"
+...Option not found: "--port"
+Not standar systemd-run.Update please.
+No bash autocompletion for systemd-stdio-bridge!
+No bash autocompletion for systemd-tmpfiles!
+No bash autocompletion for systemd-sysusers!
+No bash autocompletion for systemd-firstboot!
+Command not found or unknown options: udevadm!
+Updates needed in ../shell-completion/bash/udevadm
+...Verb not found: "info"
+...Verb not found: "trigger"
+...Verb not found: "settle"
+...Verb not found: "control"
+...Verb not found: "monitor"
+...Verb not found: "test"
+...Verb not found: "test-builtin"
+No bash autocompletion for systemd-hwdb!
+Updates needed in ../shell-completion/bash/journalctl
+...Verb not found: "-h"
+...Verb not found: "-F"
+Not standar coredumpctl.Update please.
+Updates needed in ../shell-completion/bash/coredumpctl
+...Verb not found: "info"
+Not standar hostnamectl.Update please.
+Not standar localectl.Update please.
+Updates needed in ../shell-completion/bash/localectl
+...Verb not found: "list-x11-keymap-models"
+...Verb not found: "list-x11-keymap-layouts"
+...Verb not found: "list-x11-keymap-variants"
+...Verb not found: "list-x11-keymap-options"
+Not standar timedatectl.Update please.
+Updates needed in ../shell-completion/bash/machinectl
+...Option not found: "-q"
+...Option not found: "--quiet"
+...Option not found: "--read-only"
+...Option not found: "--mkdir"
+...Option not found: "--lines"
+...Option not found: "-o"
+...Option not found: "--output"
+...Option not found: "--verify"
+...Option not found: "--force"
+...Option not found: "--dkr-index-url"
+...Verb not found: "bind"
+Updates needed in ../shell-completion/bash/loginctl
+...Option not found: "--lines"
+...Option not found: "-o"
+...Option not found: "--output"
+...Verb not found: "lock-sessions"
+...Verb not found: "unlock-sessions"
+No bash autocompletion for systemd-inhibit!
+

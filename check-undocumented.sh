@@ -5,8 +5,9 @@
 
 #Version 0.1 Parse manpages and bash autocompletion options
 #Version 0.2 Parse manpages and bash autocompletion verbs/commands
+#Version 0.3 Pure bash (removed grep, pipes,seq and cat) and fixed bug in -f/-b verbs
 
-__version=0.2
+__version=0.3
 MANPAGES=../man
 BASH_AUTO=../shell-completion/bash
 
@@ -17,8 +18,8 @@ for arg in $(get_options_type $com "arg")
 do
     echo -n "
     $arg)
-      comps=''
-      ;;"
+    comps=''
+    ;;"
 done
 }
 
@@ -30,7 +31,7 @@ local -a arr
 com=$1
 type=$2
 
-if [[ "$type" == "arg" ]];
+if [[ $type == arg ]];
 then
     regex='([-[:alnum:]]*)(\[?)(=)'
 else
@@ -40,10 +41,10 @@ fi
 args=($(get_options $com))
 [[ -z $args ]] && return
 
-for num in $(seq 0 $((${#args[@]}-1))); 
+local total=$((${#args[@]}-1))
+for num in $(eval echo {0..$total}); 
 do 
     value=${args[num]}
-    # echo $value
     [[ $value =~ $regex ]] && arr=("${arr[@]}" "${BASH_REMATCH[1]}")
 done
 echo ${arr[@]}
@@ -58,7 +59,7 @@ local -a arr
 com=$1
 type=$2
 
-if [[ "$type" == "standalone" ]];
+if [[ $type == standalone ]];
 then
     regex='([-[:alnum:]]*)(_NAME.*)$'
 else
@@ -68,11 +69,12 @@ fi
 args=($(get_verbs $com "full"))
 [[ -z $args ]] && return
 
-for num in $(seq 0 $((${#args[@]}-1))); 
+local total=$((${#args[@]}-1))
+for num in $(eval echo {0..$total}); 
 do 
     value=${args[num]}
     [[ $value =~ $regex ]] && arr=("${arr[@]}" "${BASH_REMATCH[1]}") 
-    
+
 done
 echo ${arr[@]}
 }
@@ -83,7 +85,7 @@ local com  output
 com=$1
 # mapfile output <<-EOF
 
-cat <<-EOF
+echo "
 # $com(1) completion                                  -*- shell-script -*-
 #
 # This file is part of systemd.
@@ -116,7 +118,7 @@ local -A OPTS=(
 if __contains_word "\$prev" \${OPTS[ARG]}; then
     case \$prev in
         $(generate_case_arg $com)
-    esac
+esac
 COMPREPLY=( \$(compgen -W '\$comps' -- "\$cur") )
 return 0
 fi
@@ -126,42 +128,51 @@ if [[ "$cur" = -* ]]; then
     return 0
 fi
 
-        local -A VERBS=(
-           [STANDALONE]='$(get_verbs_type $com "standalone")'
-           [FLAG]='$(get_verbs_type $com "flag")'
-        )
+local -A VERBS=(
+[STANDALONE]='$(get_verbs_type $com "standalone")'
+[FLAG]='$(get_verbs_type $com "flag")'
+)
 
-        for ((i=0; i < COMP_CWORD; i++)); do
-                if __contains_word "\${COMP_WORDS[i]}" \${VERBS[*]} &&
-                 ! __contains_word "\${COMP_WORDS[i-1]}" \${OPTS[ARG]}; then
-                        verb=\${COMP_WORDS[i]}
-                        break
-                fi
+for ((i=0; i < COMP_CWORD; i++)); do
+    if __contains_word "\${COMP_WORDS[i]}" \${VERBS[*]} &&
+        ! __contains_word "\${COMP_WORDS[i-1]}" \${OPTS[ARG]}; then
+    verb=\${COMP_WORDS[i]}
+    break
+fi
         done
 
         if   [[ -z \$verb ]]; then
-                comps="\${VERBS[*]}"
+            comps="\${VERBS[*]}"
         elif __contains_word "\$verb" \${VERBS[STANDALONE]}; then
-                comps=''
+            comps=''
         fi
 
         COMPREPLY=( \$(compgen -W '\$comps' -- "\$cur") )
         return 0
-  }
+    }
 
-complete -F _$com $com
-EOF
+    complete -F _$com $com
+    "
 }
 
 
 
 function get_systemd_commands(){
-local regex
-regex='(root)?bin_PROGRAMS[[:space:]]?(\+?)=(.*)'
+local regex='(root)?bin_PROGRAMS[[:space:]]?(\+?)=*[\\[:space:]]'
+local found=0
 
-grep -E $regex ../Makefile.am -A 20 | while read a; do 
-[[ $a =~ $regex ]] && echo ${BASH_REMATCH[3]}
-done
+while IFS= read -r line; do 
+    if (($found)); 
+    then
+        if [[ -z $line ]]; then
+            found=0 
+        else # Remove possible trailing \
+            echo ${line%\\}
+    fi
+fi
+[[ $line =~ $regex ]] && found=1
+done < ../Makefile.am
+
 }
 
 function get_options(){
@@ -171,7 +182,9 @@ com=$1
 hash $com 2>/dev/null || return 0
 
 args=($($com -h))
-for arg in $(seq 0 $((${#args[@]}-1))); 
+
+local total=$((${#args[@]}-1))
+for arg in $(eval echo {0..$total}); 
 do
     value=${args[arg]}
     if [[ $value == -* ]]; then
@@ -190,14 +203,11 @@ regex_verbs='^([[:space:]]){1,2}([-[:alnum:]])(.*)';
 
 while IFS= read -r line
 do
-    [[ "$line" =~ $regex_commands ]] && found=1 && continue
-    if [[ $found ]]; 
-    then
-        if [[ "$line" =~ $regex_verbs ]]; 
-        then
+    [[ $line =~ $regex_commands ]] && { found=1; continue; }
+    if [[ $found ]]; then
+        if [[ $line =~ $regex_verbs ]]; then
             arr=(${line//[[:space:]]/ })
-            if [[ $full ]];
-            then
+            if [[ $full ]]; then
                 echo ${arr[0]}_${arr[1]}
             else
                 echo ${arr[0]}
@@ -213,34 +223,34 @@ value=$1
 ret="true"
 
 #Shall it leave out -M and -H or not?
-[[ "$value" = "-h" || "$value" = "--help" 
-|| "$value" = "-M" || "$value" = "-H" 
-|| "$value" = "--version" ]] &&
+[[ $value = -h || $value = --help 
+|| $value = -M || $value = -H 
+|| $value = --version ]] &&
     ret="false"
 echo "$ret"
 }
 
 
 function do_manpage_options(){
-local value r clean regex1 regex2 lines com args
+local value r clean regex lines com args
 com=$1
 lines=$2
 
 #GET OPTIONS
 args=($(get_options $com))
-[[ -z $args ]] && echo Command not found or unknown options in: $com! && return
+[[ -z $args ]] && { echo "Command not found or unknown options in: $com!"; return; }
 
-for num in $(seq 0 $((${#args[@]}-1))); 
+local total=$((${#args[@]}-1))
+for num in $(eval echo {0..$total}); 
 do 
     value=${args[num]}
     r=$(filter $value)
-    if [[ "$r" == "true" ]]; then
+    if [[ $r == true ]]; then
         [[ $value =~ (-+)([-[:alnum:]]*)(.*) ]] && clean=${BASH_REMATCH[2]}
-        regex1='<xi:include href=".*-options.xml" xpointer="(-*)'$clean'(=?)" />'
-        regex2='<term><option>(-*)'$clean'(.*)<.*</term>'
-        if [[ ! $lines =~ $regex1 ]] && [[ ! $lines =~ $regex2 ]];
+        regex='<option>(.*)'$clean'(.*)</option>'
+        if [[ ! $lines =~ $regex ]];
         then
-            [[ $bool -eq 0 ]] && echo Updates needed in $MANPAGES/$com.xml && bool=1
+            [[ $bool -eq 0 ]] && { echo "Updates needed in $MANPAGES/$com.xml"; bool=1; }
             echo ...Need to document the option \"$value\" 
         fi
     fi
@@ -248,24 +258,26 @@ done
 }
 
 function do_manpage_verbs(){
-local value r clean regex1 regex2 lines com args
+local value r clean regex lines com args
 com=$1
 lines=$2
 
 #What happened with journalctl commands?
-[[ $com = "journalctl" ]] && return 
+#Fixed
+# [[ $com = "journalctl" ]] && return 
 
-#COMMANDS/VERBS
+#GET COMMANDS/VERBS
 args=($(get_verbs $com))
 [[ -z $args ]] && return
-for num in $(seq 0 $((${#args[@]}-1))); 
+
+local total=$((${#args[@]}-1))
+for num in $(eval echo {0..$total}); 
 do 
     value=${args[num]}
-    regex1='<term><command>'$value'(.*)</term>'
-    regex2='<para><command>systemd-analyze '$value'(.*)'
-    if [[ ! $lines =~ $regex1 ]] && [[ ! $lines =~ $regex2 ]];
+    regex='<command>?(.*)'$value'(.*)</command>'
+    if [[ ! $lines =~ $regex ]];
     then
-        [[ $bool -eq 0 ]] && echo Updates needed in $MANPAGES/$com.xml && bool=1
+        [[ $bool -eq 0 ]] && { echo "Updates needed in $MANPAGES/$com.xml"; bool=1;}
         echo ...Need to document the command \"$value\" 
     fi
 done
@@ -276,9 +288,9 @@ function do_manpage(){
 local value r clean regex1 regex2 lines com args
 com=$1
 bool=0
-[[ ! -f $MANPAGES/$com.xml ]] && echo No manpage for $com! && return
+[[ ! -f $MANPAGES/$com.xml ]] && { echo "No manpage for $com!" ; return; }
 
-mapfile -t lines <<< $(cat $MANPAGES/$com.xml)
+mapfile -t lines <<< $( <$MANPAGES/$com.xml)
 
 do_manpage_options $com "$lines" 
 do_manpage_verbs $com "$lines" 
@@ -289,51 +301,57 @@ do_manpage_verbs $com "$lines"
 function do_manpages(){
 local com
 local -a commands
-cat <<EOF
+echo "
 ################################################################################
 #                             Uncompleted MANPAGES                             #
 ################################################################################
-EOF
+"
 
 commands=($(get_systemd_commands))
-for com in $(seq 0 $((${#commands[@]}-1))); do 
+local total=$((${#commands[@]}-1))
+for com in $(eval echo {0..$total}); 
+do
     do_manpage ${commands[com]} 
 done
 }
 
 
 function do_bash_autocompletion_options(){
-local value value_clear r found1 found2 args lines com
-local regex regex1 regex2 regex3
+local value value_clear r found1 found2 found3 args lines com
+local regex regex1 regex2 regex3 regex4
 com=$1
 lines=$2
 
-#OPTIONS
+#Get OPTIONS
 args=($(get_options $com))
-[[ -z $args ]] && echo Command not found or unknown options: $com! && return
+[[ -z $args ]] && { echo "Command not found or unknown options: $com!"; return;}
 
 regex="(local -A OPTS=\([[:space:]]*)"
-regex1=$regex"(\[STANDALONE\]\=)('?)([-[:alnum:][:space:]]*)('?)(.*)"
+regex1=$regex"(\[STANDALONE\]\=)('?)([-=[:alnum:][:space:]]*)('?)(.*)"
 regex2=$regex"(.*)(\[ARG\]\=)('?)([-[:alnum:][:space:]]*)('?)(.*)"
-regex3="(local OPTS=')([-[:alnum:][:space:]]*)('?)(.*)"
+regex3=$regex"(.*)(\[ARGUNKNOWN\]\=)('?)([-[:alnum:][:space:]]*)('?)(.*)"
+regex4="(local OPTS=')([-[:alnum:][:space:]]*)('?)(.*)"
 
 #Not "standar" way
-[[ ! "$lines" =~ $regex ]]  && mapfile -t lines <<< $(cat $BASH_AUTO/$com)
+[[ ! $lines =~ $regex ]]  && mapfile -t lines <<< $( <$BASH_AUTO/$com)
 
 [[ $lines =~ $regex1 ]] && found1=${BASH_REMATCH[4]} 
 [[ $lines =~ $regex2 ]] && found2=${BASH_REMATCH[5]}
-[[ $lines =~ $regex3 ]] && echo Not standar $com.Update please. && found1=${BASH_REMATCH[2]}
+[[ $lines =~ $regex3 ]] && found3=${BASH_REMATCH[5]}
+[[ $lines =~ $regex4 ]] && { echo "Not standar $com.Update please."; found1=${BASH_REMATCH[2]};}
 
-for num in $(seq 0 $((${#args[@]}-1))); 
+local total=$((${#args[@]}-1))
+for num in $(eval echo {0..$total}); 
 do 
     value=${args[num]}
     r=$(filter $value)
     [[ $value =~ ([-[:alnum:]]*)(.*) ]] && value_clear=${BASH_REMATCH[1]}
-    if [[ "$r" == "true" ]]; then
+    if [[ $r == true ]]; then
         if  [[ ! $found1 =~ (.*)$value_clear(.*) ]] && 
-            [[ ! $found2 =~ (.*)$value_clear(.*) ]]; 
+            [[ ! $found2 =~ (.*)$value_clear(.*) ]] &&
+            [[ ! $found3 =~ (.*)$value_clear(.*) ]]; 
         then
-            [[ $bool -eq 0 ]] && echo Updates needed in $BASH_AUTO/$com && bool=1
+            [[ $bool -eq 0 ]] && { echo Updates needed in $BASH_AUTO/$com ; bool=1;}
             echo ...Option not found: \"$value_clear\"
         fi
     fi
@@ -341,7 +359,7 @@ done
 }
 
 function do_bash_autocompletion_verbs(){
-local file values com
+local file values com found
 local regex_verbs_start regex_verbs_end regex1
 local -a arr
 com=$1
@@ -354,32 +372,31 @@ regex1="(\[.*\]\=')([-[:alnum:][:space:]]*)('.*)"
 args=($(get_verbs $com))
 [[ -z $args ]] && return
 
-#Command grouping to scope arr outside while
-cat $file | 
-{
-    while IFS= read -r line
-    do
-        [[ "$line" =~ $regex_verbs_start ]] && found=1 && continue
-        [[ "$line" =~ $regex_verbs_end ]] && [[ $found -eq 1 ]] && break
-        if [[ $found ]]; 
+while IFS= read -r line
+do
+    [[ $line =~ $regex_verbs_start ]] && { found=1 ; continue; }
+    [[ $line =~ $regex_verbs_end && $found -eq 1 ]] && break
+    #Aqui found=1 cuando debe de valer 0
+   if [[ $found ]]; 
+    then
+        if [[ $line =~ $regex1 ]]; 
         then
-            if [[ "$line" =~ $regex1 ]]; 
-            then
-                values=${BASH_REMATCH[2]}
-                 arr=("${arr[@]}" ${values//[[:space:]]/ })
-                #arr=("${arr[@]}" ($values))
-            fi
+            values=${BASH_REMATCH[2]}
+            arr=("${arr[@]}" ${values//[[:space:]]/ })
         fi
-    done
-    for num in $(seq 0 $((${#args[@]}-1))); 
-    do 
-        if [[ ! "${arr[@]}" =~ (.*)${args[num]}(.*) ]];
-        then
-            [[ $bool -eq 0 ]] && echo Updates needed in $BASH_AUTO/$com && bool=1
-            echo ...Verb not found: \"${args[num]}\"
-        fi
-    done
-}  #end grouping
+    fi
+done < $file
+
+local total=$((${#args[@]}-1))
+for num in $(eval echo {0..$total}); 
+do 
+    if [[ ! ${arr[@]} =~ (.*)${args[num]}(.*) ]];
+    then
+        [[ $bool -eq 0 ]] && { echo "Updates needed in $BASH_AUTO/$com"; bool=1;}
+        echo ...Verb not found: \"${args[num]}\"
+    fi
+done
+
 }
 
 
@@ -388,8 +405,8 @@ local com lines
 com=$1
 bool=0
 
-[[ ! -f $BASH_AUTO/$com ]] && echo No bash autocompletion for $com! && return
-mapfile -t lines <<< $(cat $BASH_AUTO/$com)
+[[ ! -f $BASH_AUTO/$com ]] && { echo "No bash autocompletion for $com!"; return;}
+mapfile -t lines <<< $( <$BASH_AUTO/$com)
 
 do_bash_autocompletion_options $com "$lines"
 do_bash_autocompletion_verbs $com $BASH_AUTO/$com
@@ -397,15 +414,17 @@ do_bash_autocompletion_verbs $com $BASH_AUTO/$com
 
 function do_bash_autocompletions(){
 local com
-cat <<EOF
+echo "
 ################################################################################
 #                       Uncompleted BASH AUTOCOMPLETIONS                       #
 ################################################################################
-EOF
+"
 
 declare -a commands=($(get_systemd_commands))
 
-for com in $(seq 0 $((${#commands[@]}-1))); do 
+local total=$((${#commands[@]}-1))
+for com in $(eval echo {0..$total}); 
+do
     do_bash_autocompletion ${commands[com]} 
 done
 }
@@ -414,7 +433,7 @@ done
 #                                     MAIN                                     #
 ################################################################################
 function usage (){
-cat <<- EOT
+echo "
 $0 [OPTIONS...]
 
 Search for undocumented options and bash autocompletions
@@ -426,7 +445,7 @@ Search for undocumented options and bash autocompletions
 -t|template   Generate autocompletion template for program
 -f|full       Search for everything
 -p=PROGRAM    Search for undocumented program
-EOT
+"
 } 
 
 while getopts ":hvmbfp:t:" opt
@@ -458,5 +477,5 @@ do
 done
 shift $(($OPTIND-1))
 
-[[ $# -eq 0 ]] && echo Need arguments
+[[ $# -eq 0 ]] && echo Need arguments. Try $0 -h
 
